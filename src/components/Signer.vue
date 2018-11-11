@@ -1,7 +1,14 @@
 <template>
   <div class="Signer">
     <h1>{{ msg }}</h1>
-      <ul v-if="users && users.length">
+      <b-dropdown  v-if="users && users.length" id="ddown1" text="Dropdown Button" class="m-md-2">
+        <b-dropdown-item  v-for="user of users"
+                            :key="user.id"
+                            :value="user.username">
+         {{user.username}}
+        </b-dropdown-item>
+      </b-dropdown>
+      <!--<ul v-if="users && users.length">
         <li v-for="user of users">
           <p><strong>{{users.title}}</strong></p>
           <p>{{user.username}}</p>
@@ -12,7 +19,7 @@
         <li v-for="error of errors">
           {{error.message}}
         </li>
-      </ul>
+      </ul>-->
   </div>
 </template>
 
