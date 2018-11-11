@@ -14,6 +14,7 @@
       <div><b-button>Sign and Send Token</b-button></div>
       <div v-if="selectedProfile">User: {{selectedProfile.user.username}}</div>
       <pre v-if="selectedProfile">{{selectedProfile.private_key}}</pre>
+      <pre v-if="selectedProfile">{{selectedProfile.public_key}}</pre>
   </div>
 </template>
 
