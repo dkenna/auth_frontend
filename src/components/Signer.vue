@@ -23,7 +23,9 @@
       </b-dropdown>
 
       <!--<div><b-button>Sign and Send Token</b-button></div>-->
-      <div v-if="serverToken">{{serverToken}}</div>
+      <div class="small"><b-form-textarea class="small" v-if="serverToken"
+                                v-model="serverToken" readonly plaintext :rows="6"
+                                :max-rows="6">{{serverToken}}</b-form-textarea></div>
       <div class="small"><b-form-textarea class="small" v-if="signedToken"
                                 v-model="signedToken" readonly plaintext :rows="6"
                                 :max-rows="6">{{signedToken}}</b-form-textarea></div>
@@ -47,7 +49,8 @@ export default {
       serverToken: null,
       signedToken: null,
       errors: [],
-      actions: [{id: 1, name: 'Sign Token'}, {id: 2, name: 'Get a Challenge'}, {id: 3, name: 'Verify Challenge'}],
+      actions: [{id: 1, name: 'Get a Challenge'}, {id: 2, name: 'Sign Challenge'},
+        {id: 3, name: 'Authenticate'}],
       msg: 'TokenSigner'
     }
   },
@@ -64,24 +67,24 @@ export default {
   methods: {
     selectAction: function (event, action) {
       if (action.id === 1) {
-        this.signToken()
+        this.getChallenge()
       } else if (action.id === 2) {
-        alert('Action : ' + action.name)
+        this.signToken()
       }
     },
     signToken: function (event) {
-      var payload = {id: 1, name: 'johnny', hash: 'xxx'}
-      console.log('this.selectedProfile: ' + this.selectedProfile)
-      if (this.selectedProfile) {
+      if (this.selectedProfile && this.serverToken) {
+        var username = this.selectedProfile.user.username
+        var payload = {signed_challenge: this.serverToken, username: username}
         console.log('selectedProfile: OK')
-        this.signedToken = jwt.sign(payload, this.selectedProfile.private_key, {algorithm: 'RS256'})
+        this.signedToken = jwt.sign(payload, this.selectedProfile.private_key,
+          {algorithm: 'RS256'})
       }
     },
-    fetchChallenge: function (event) {
+    getChallenge: function (event) {
       axios.get(`http://localhost:8000/get_token`)
         .then(response => {
-          // JSON responses are automatically parsed.
-          this.serverToken = response.data
+          this.serverToken = response.data['token']
         })
         .catch(e => {
           this.errors.push(e)
