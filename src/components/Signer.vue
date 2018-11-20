@@ -38,6 +38,17 @@
 <script>
 import axios from 'axios'
 import jwt from 'jsonwebtoken'
+import VueIdb from 'vue-idb'
+
+const idb = new VueIdb({
+  version: 1,
+  database: 'test',
+  schemas: [
+    { tests: 'id, title, created_at, updated_at' },
+    { posts: 'id, owner' },
+    { friends: '++id, name, age' }
+  ]
+})
 
 export default {
   name: 'Signer',
@@ -48,6 +59,8 @@ export default {
       selectedAction: null,
       serverToken: null,
       signedToken: null,
+      dbPromise: null,
+      idb: idb,
       errors: [],
       actions: [{id: 1, name: 'Get a Challenge'}, {id: 2, name: 'Sign Challenge'},
         {id: 3, name: 'Authenticate'}],
@@ -55,7 +68,7 @@ export default {
     }
   },
   created () {
-    axios.get(`http://localhost:8000/profiles/?format=json`)
+    axios.get(`http://dkenna.com:8000/profiles/?format=json`)
       .then(response => {
         // JSON responses are automatically parsed.
         this.profiles = response.data
@@ -63,6 +76,24 @@ export default {
       .catch(e => {
         this.errors.push(e)
       })
+    /* if (!('indexedDB' in window)) {
+      console.log('This browser doesn\'t support IndexedDB')
+    } else {
+      console.log('IndexedDB supported')
+      console.log(this.idb.db)
+      console.log(this.idb.db.tables)
+      var db = this.idb.db
+      this.idb.db.friends.put({
+        name: 'Camilla',
+        age: 25
+      }).then(function (friend) {
+        db.friends.get(friend, function (item) {
+          console.log(item)
+        })
+      }).catch(function (error) {
+        alert('Ooops: ' + error)
+      })
+    } */
   },
   methods: {
     selectAction: function (event, action) {
@@ -82,7 +113,7 @@ export default {
       }
     },
     getChallenge: function (event) {
-      axios.get(`http://localhost:8000/get_token`)
+      axios.get(`http://dkenna.com:8000/get_token`)
         .then(response => {
           this.serverToken = response.data['token']
         })
