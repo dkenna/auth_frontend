@@ -76,24 +76,6 @@ export default {
       .catch(e => {
         this.errors.push(e)
       })
-    /* if (!('indexedDB' in window)) {
-      console.log('This browser doesn\'t support IndexedDB')
-    } else {
-      console.log('IndexedDB supported')
-      console.log(this.idb.db)
-      console.log(this.idb.db.tables)
-      var db = this.idb.db
-      this.idb.db.friends.put({
-        name: 'Camilla',
-        age: 25
-      }).then(function (friend) {
-        db.friends.get(friend, function (item) {
-          console.log(item)
-        })
-      }).catch(function (error) {
-        alert('Ooops: ' + error)
-      })
-    } */
   },
   methods: {
     selectAction: function (event, action) {
