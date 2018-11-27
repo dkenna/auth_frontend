@@ -95,7 +95,7 @@ export default {
       }
     },
     getChallenge: function (event) {
-      axios.get(`http://dkenna.com:8000/get_token`)
+      axios.get(`http://dkenna.com:8000/get_auth_challenge`)
         .then(response => {
           this.serverToken = response.data['token']
         })
