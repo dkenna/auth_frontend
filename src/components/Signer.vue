@@ -32,6 +32,11 @@
       <div v-if="selectedProfile">User: {{selectedProfile.user.username}}</div>
       <pre v-if="selectedProfile">{{selectedProfile.private_key}}</pre>
       <pre v-if="selectedProfile">{{selectedProfile.public_key}}</pre>
+      <div id="logbox">
+        <b-form-textarea v-if="logText"
+            v-model="logText" readonly plaintext :rows="6"
+            :max-rows="6">{{logText}}</b-form-textarea>
+      </div>
   </div>
 </template>
 
@@ -60,6 +65,7 @@ export default {
       serverToken: null,
       signedToken: null,
       dbPromise: null,
+      logText: '',
       idb: idb,
       errors: [],
       actions: [{id: 1, name: 'Get a Challenge'}, {id: 2, name: 'Sign Challenge'},
@@ -78,30 +84,54 @@ export default {
       })
   },
   methods: {
+    logAction: function (msg) {
+      this.logText = msg + '\n' + this.logText
+    },
     selectAction: function (event, action) {
       if (action.id === 1) {
         this.getChallenge()
       } else if (action.id === 2) {
         this.signToken()
+      } else if (action.id === 3) {
+        this.authenticate()
       }
     },
     signToken: function (event) {
+      if (!this.selectedProfile) this.logAction('select a user first...')
+      if (!this.serverToken) this.logAction('get a login challenge first...')
       if (this.selectedProfile && this.serverToken) {
         var username = this.selectedProfile.user.username
         var payload = {signed_challenge: this.serverToken, username: username}
         console.log('selectedProfile: OK')
         this.signedToken = jwt.sign(payload, this.selectedProfile.private_key,
           {algorithm: 'RS256'})
+          this.logAction('signing challenge with priv key...')
       }
     },
     getChallenge: function (event) {
       axios.get(`http://dkenna.com:8000/get_auth_challenge`)
         .then(response => {
           this.serverToken = response.data['token']
+          this.logAction('getting login challenge from server...')
         })
         .catch(e => {
           this.errors.push(e)
         })
+    },
+    authenticate: function (event, action) {
+      if (!this.signedToken) {
+        this.logAction('you first have to generate a signed token...')
+      } else {
+        this.logAction('authenticating...')
+        axios.post('http://dkenna.com:8000/token_login', { username: this.selectedProfile.user.username,
+                          signed_challenge: this.signedToken})
+          .then(function (response) {
+              this.logAction(response.data['id_token'])
+          }.bind(this)).catch(function (error) {
+              this.logAction('authorization failed...')
+              this.logAction(error)
+          }.bind(this))
+      }
     }
   }
 }
@@ -111,5 +141,14 @@ export default {
   width: 60%;
   font-size: 0.8em;
   margin:0 auto;
+}
+#logbox {
+  width: 30%;
+  float: left;
+  position: absolute;
+  top: 0;
+  left: 10px;
+  text-align: left;
+  font-size: 0.7em;
 }
 </style>
