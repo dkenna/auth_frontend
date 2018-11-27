@@ -43,17 +43,6 @@
 <script>
 import axios from 'axios'
 import jwt from 'jsonwebtoken'
-import VueIdb from 'vue-idb'
-
-const idb = new VueIdb({
-  version: 1,
-  database: 'test',
-  schemas: [
-    { tests: 'id, title, created_at, updated_at' },
-    { posts: 'id, owner' },
-    { friends: '++id, name, age' }
-  ]
-})
 
 export default {
   name: 'Signer',
@@ -66,7 +55,6 @@ export default {
       signedToken: null,
       dbPromise: null,
       logText: '',
-      idb: idb,
       errors: [],
       actions: [{id: 1, name: 'Get a Challenge'}, {id: 2, name: 'Sign Challenge'},
         {id: 3, name: 'Authenticate'}],
