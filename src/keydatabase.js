@@ -32,4 +32,4 @@ function formatAsPem (str) {
     return finalString
 }
 
-export default db
+// export default db

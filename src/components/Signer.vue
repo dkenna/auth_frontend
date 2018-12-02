@@ -23,24 +23,28 @@
       </b-dropdown>
 
       <!--<div><b-button>Sign and Send Token</b-button></div>-->
-      <div class="small"><b-form-textarea class="small" v-if="serverToken"
-                                v-model="serverToken" readonly plaintext :rows="6"
-                                :max-rows="6">{{serverToken}}</b-form-textarea></div>
-      <div class="small"><b-form-textarea class="small" v-if="signedToken"
-                                v-model="signedToken" readonly plaintext :rows="6"
-                                :max-rows="6">{{signedToken}}</b-form-textarea></div>
+      <!--<div class="small"><b-form-textarea class="small" v-if="authChallenge"
+                                v-model="authChallenge" readonly plaintext :rows="6"
+                                :max-rows="6">{{authChallenge}}</b-form-textarea></div>
+      <div class="small"><b-form-textarea class="small" v-if="signedAuthChallenge"
+                                v-model="signedAuthChallenge" readonly plaintext :rows="6"
+                                :max-rows="6">{{signedAuthChallenge}}</b-form-textarea></div>-->
+      <div class="small"><b-form-textarea class="small" v-if="tokenLog"
+                                v-model="tokenLog" readonly plaintext :rows="10"
+                                :max-rows="10"></b-form-textarea></div>
       <div v-if="selectedProfile">User: {{selectedProfile.user.username}}</div>
       <pre v-if="selectedProfile">{{selectedProfile.private_key}}</pre>
       <pre v-if="selectedProfile">{{selectedProfile.public_key}}</pre>
       <div id="logbox">
         <b-form-textarea v-if="logText"
             v-model="logText" readonly plaintext :rows="6"
-            :max-rows="6">{{logText}}</b-form-textarea>
+            :max-rows="6"></b-form-textarea>
       </div>
   </div>
 </template>
 
 <script>
+import { spkiToPEM, db } from '../keydatabase.js'
 import axios from 'axios'
 import jwt from 'jsonwebtoken'
 
@@ -51,13 +55,24 @@ export default {
       profiles: [],
       selectedProfile: null,
       selectedAction: null,
-      serverToken: null,
-      signedToken: null,
+      authChallenge: null,
+      updatePubKeyChallenge: null,
+      signedAuthChallenge: null,
+      signedUpdateChallenge: null,
       dbPromise: null,
       logText: '',
+      tokenLog: '',
       errors: [],
-      actions: [{id: 1, name: 'Get a Challenge'}, {id: 2, name: 'Sign Challenge'},
-        {id: 3, name: 'Authenticate'}],
+      actions: [
+                {id: 1, name: 'Get Auth Challenge'},
+                {id: 2, name: 'Sign Challenge'},
+                {id: 3, name: 'Authenticate'},
+                {id: 4, name: 'Get Pub Key Challenge'},
+                {id: 5, name: 'Sign Pub Key Challenge'},
+                {id: 6, name: 'Get Update Token'},
+                {id: 7, name: 'Generate Keypair'},
+                {id: 8, name: 'Upload Public Key'}
+               ],
       msg: 'TokenSigner'
     }
   },
@@ -75,50 +90,136 @@ export default {
     logAction: function (msg) {
       this.logText = msg + '\n' + this.logText
     },
+    logToken: function (msg, tokenName) {
+      this.tokenLog = msg + '\n' + this.tokenLog
+      this.tokenLog = tokenName + ' :' + '\n' + this.tokenLog
+    },
     selectAction: function (event, action) {
       if (action.id === 1) {
         this.getChallenge()
       } else if (action.id === 2) {
-        this.signToken()
+        this.signedAuthChallenge = this.signToken(event, this.authChallenge)
       } else if (action.id === 3) {
         this.authenticate()
+      } else if (action.id === 4) {
+        this.getPubKeyChallenge()
+      } else if (action.id === 5) {
+        this.signedUpdateChallenge = this.signToken(event, this.updatePubKeyChallenge)
+      } else if (action.id === 6) {
+        this.getUpdateToken()
+      } else if (action.id === 7) {
+        this.generateKeyPair()
+      } else if (action.id === 8) {
+        this.uploadPublicKey()
       }
     },
-    signToken: function (event) {
+    signToken: function (event, challenge) {
       if (!this.selectedProfile) this.logAction('select a user first...')
-      if (!this.serverToken) this.logAction('get a login challenge first...')
-      if (this.selectedProfile && this.serverToken) {
-        var username = this.selectedProfile.user.username
-        var payload = {signed_challenge: this.serverToken, username: username}
-        console.log('selectedProfile: OK')
-        this.signedToken = jwt.sign(payload, this.selectedProfile.private_key,
+      if (!challenge) this.logAction('get a challenge first...')
+      if (this.selectedProfile && challenge) {
+        let username = this.selectedProfile.user.username
+        let payload = {challenge: challenge, username: username}
+        let signedToken = jwt.sign(payload, this.selectedProfile.private_key,
           {algorithm: 'RS256'})
-          this.logAction('signing challenge with priv key...')
+        this.logAction('signing challenge with priv key...')
+        this.logToken(signedToken, 'signed challenge')
+        return signedToken
       }
+      return null
     },
     getChallenge: function (event) {
       axios.get(`http://dkenna.com:8000/get_auth_challenge`)
         .then(response => {
-          this.serverToken = response.data['token']
+          this.authChallenge = response.data['token']
           this.logAction('getting login challenge from server...')
+          this.logToken(this.authChallenge, 'auth challenge')
         })
         .catch(e => {
           this.errors.push(e)
         })
     },
     authenticate: function (event, action) {
-      if (!this.signedToken) {
+      if (!this.signedAuthChallenge) {
         this.logAction('you first have to generate a signed token...')
       } else {
         this.logAction('authenticating...')
-        axios.post('http://dkenna.com:8000/token_login', { username: this.selectedProfile.user.username,
-                          signed_challenge: this.signedToken})
+        axios.post('http://dkenna.com:8000/token_login',
+                        { username: this.selectedProfile.user.username,
+                        signed_challenge: this.signedAuthChallenge})
           .then(function (response) {
-              this.logAction(response.data['id_token'])
+              this.logAction('authenticated!')
+              this.logToken(response.data['id_token'], 'id_token')
           }.bind(this)).catch(function (error) {
               this.logAction('authorization failed...')
               this.logAction(error)
           }.bind(this))
+      }
+    },
+    getPubKeyChallenge: function (event) {
+      axios.get(`http://dkenna.com:8000/get_update_challenge`)
+        .then(response => {
+          this.updatePubKeyChallenge = response.data['token']
+          this.logAction('getting pubkey challenge from server...')
+          this.logToken(this.updatePubKeyChallenge, 'update challenge')
+        })
+        .catch(e => {
+          this.errors.push(e)
+        })
+    },
+    getUpdateToken: function (event, action) {
+      if (!this.signedUpdateChallenge) {
+        this.logAction('you first have to generate a signed challenge...')
+      } else {
+        this.logAction('getting an update token...')
+        axios.post('http://dkenna.com:8000/get_update_token',
+                        { username: this.selectedProfile.user.username,
+                        signed_challenge: this.signedUpdateChallenge})
+          .then(function (response) {
+              this.logToken(response.data['update_token'], 'update token')
+          }.bind(this)).catch(function (error) {
+              this.logAction('couldn\'t get update token...')
+              this.logAction(error)
+          }.bind(this))
+      }
+    },
+    generateKeyPair: function () {
+      if (!this.selectedProfile) {
+        this.logAction('you must first select a profile')
+        return
+      }
+      window.crypto.subtle.generateKey(
+          {
+              name: 'RSASSA-PKCS1-v1_5',
+              modulusLength: 4096, // can be 1024, 2048, or 4096
+              publicExponent: new Uint8Array([0x01, 0x00, 0x01]),
+              hash: {name: 'SHA-256'} // can be 'SHA-1', 'SHA-256', 'SHA-384', or 'SHA-512'
+          },
+          false, // whether the key is extractable (i.e. can be used in exportKey)
+          ['sign', 'verify'] // can be any combination of 'sign' and 'verify'
+      )
+      .then(function (key) {
+          // returns a keypair object
+          this.logAction('generating keypair and storing it in indexeddb...')
+          db.keystore.add({username: this.selectedProfile.user.username,
+                  priv_key: key.privateKey,
+                  pub_key: key.publicKey,
+                  date: Date.now()})
+      }.bind(this))
+      .catch(function (err) {
+          console.error(err)
+      })
+    },
+    uploadPublicKey: async function () {
+      this.logAction('retrieving last generated public key from indexeddb...')
+      let lastRow = await db.keystore.orderBy('id').last()
+      if (lastRow) {
+        window.crypto.subtle.exportKey('spki', lastRow.pub_key).then(function (keydata) {
+            console.log(lastRow.pub_key)
+            let pem = spkiToPEM(keydata)
+            this.logToken(pem, 'public key to upload')
+        }.bind(this))
+      } else {
+        this.logAction('you must first generate a key...')
       }
     }
   }
