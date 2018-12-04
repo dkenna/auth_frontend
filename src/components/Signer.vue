@@ -21,14 +21,6 @@
          {{action.name}}
         </b-dropdown-item>
       </b-dropdown>
-
-      <!--<div><b-button>Sign and Send Token</b-button></div>-->
-      <!--<div class="small"><b-form-textarea class="small" v-if="authChallenge"
-                                v-model="authChallenge" readonly plaintext :rows="6"
-                                :max-rows="6">{{authChallenge}}</b-form-textarea></div>
-      <div class="small"><b-form-textarea class="small" v-if="signedAuthChallenge"
-                                v-model="signedAuthChallenge" readonly plaintext :rows="6"
-                                :max-rows="6">{{signedAuthChallenge}}</b-form-textarea></div>-->
       <div class="small"><b-form-textarea class="small" v-if="tokenLog"
                                 v-model="tokenLog" readonly plaintext :rows="10"
                                 :max-rows="10"></b-form-textarea></div>
@@ -71,7 +63,8 @@ export default {
                 {id: 5, name: 'Sign Pub Key Challenge'},
                 {id: 6, name: 'Get Update Token'},
                 {id: 7, name: 'Generate Keypair'},
-                {id: 8, name: 'Upload Public Key'}
+                {id: 8, name: 'Upload Public Key'},
+                {id: 9, name: 'Sign with new Priv Key'}
                ],
       msg: 'TokenSigner'
     }
@@ -111,6 +104,8 @@ export default {
         this.generateKeyPair()
       } else if (action.id === 8) {
         this.uploadPublicKey()
+      } else if (action.id === 9) {
+        this.signData()
       }
     },
     signToken: function (event, challenge) {
@@ -220,6 +215,56 @@ export default {
         }.bind(this))
       } else {
         this.logAction('you must first generate a key...')
+      }
+    },
+    buf2hex: function (buf) {
+      return Array.prototype.map.call(new Uint8Array(buf),
+        x => (('00' + x.toString(16)).slice(-2))).join('')
+    },
+    encodeBase64URL: function (arraybuffer) {
+        var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
+        var bytes = new Uint8Array(arraybuffer)
+        var len = bytes.length
+        var base64 = ''
+        for (var i = 0; i < len; i += 3) {
+            base64 += chars[bytes[i] >> 2]
+            base64 += chars[((bytes[i] & 3) << 4) | (bytes[i + 1] >> 4)]
+            base64 += chars[((bytes[i + 1] & 15) << 2) | (bytes[i + 2] >> 6)]
+            base64 += chars[bytes[i + 2] & 63]
+        }
+        if ((len % 3) === 2) {
+            base64 = base64.substring(0, base64.length - 1)
+        } else if (len % 3 === 1) {
+            base64 = base64.substring(0, base64.length - 2)
+        }
+        return base64
+    },
+    signData: async function () {
+      let buf = new TextEncoder('utf-8')
+            .encode('eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhIjoiYiJ9')
+      this.logAction('retrieving last priv key for signing...')
+      let lastRow = await db.keystore.orderBy('id').last()
+      if (lastRow) {
+        window.crypto.subtle.exportKey('spki', lastRow.pub_key).then(function (keydata) {
+          console.log(lastRow.pub_key)
+          let pem = spkiToPEM(keydata)
+          this.logToken(pem, 'public key')
+        }.bind(this))
+        window.crypto.subtle.sign('RSASSA-PKCS1-v1_5', lastRow.priv_key, buf)
+        .then(function (sig) {
+          this.logToken(this.encodeBase64URL(sig), 'signature')
+          // console.log(sig)
+        }.bind(this))
+        window.crypto.subtle.exportKey('spki', lastRow.priv_key).then(function (keydata) {
+            // console.log(lastRow.priv_key)
+            // let pem = spkiToPEM(keydata)
+            // this.logToken(pem, 'priv key to upload')
+        }).catch(function (error) {
+              this.logAction('couldn\'t export private key...')
+              this.logAction(error)
+          }.bind(this))
+      } else {
+        this.logAction('you must first generate a key before signing...')
       }
     }
   }
