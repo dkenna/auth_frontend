@@ -2,7 +2,7 @@
 // (runtime-only or standalone) has been set in webpack.base.conf with an alias.
 import Vue from 'vue'
 import App from './App'
-import Signer from './components/Signer'
+// import Signer from './components/Signer'
 import router from './router'
 import BootstrapVue from 'bootstrap-vue'
 import 'bootstrap/dist/css/bootstrap.css'
@@ -16,8 +16,7 @@ new Vue({
   el: '#app',
   router,
   components: {
-    App,
-    Signer
+    App
   },
   template: '<App/>'
 })

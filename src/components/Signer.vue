@@ -40,6 +40,7 @@ import { spkiToPEM, db } from '../keydatabase.js'
 import axios from 'axios'
 import jwt from 'jsonwebtoken'
 
+// axios.defaults.withCredentials = true
 export default {
   name: 'Signer',
   data () {
@@ -138,9 +139,11 @@ export default {
         this.logAction('you first have to generate a signed token...')
       } else {
         this.logAction('authenticating...')
-        axios.post('http://dkenna.com:8000/token_login',
-                        { username: this.selectedProfile.user.username,
-                        signed_challenge: this.signedAuthChallenge})
+        axios({method: 'post',
+               url: 'http://dkenna.com:8000/token_login',
+               data: {username: this.selectedProfile.user.username,
+                        signed_challenge: this.signedAuthChallenge},
+               withCredentials: true})
           .then(function (response) {
               this.logAction('authenticated!')
               this.logToken(response.data['id_token'], 'id_token')
