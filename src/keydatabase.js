@@ -3,21 +3,31 @@ import * as log from 'loglevel'
 
 log.setLevel('debug')
 
+const defaultModulusLength = 2048
+const defaultAlgo = 'RSASSA-PKCS1-v1_5'
+const defaultHash = 'SHA-256'
+
 class KeyStoreManager {
     constructor () {
-        this.db = new Dexie('keystore')
-        this.db.version(1).stores({
-            keystore: '++id,username,priv_key,pub_key,date'
-        })
+        this.db = null
         this.errors = []
+        this.createDB()
     }
     log (msg) {
         log.log(msg)
     }
 
+    createDB () {
+        this.db = new Dexie('keystore')
+        this.db.version(1).stores({
+            keystore: '++id,username,priv_key,pub_key,date'
+        })
+    }
     async forget () {
-        await this.db.delete()
-        this.constructor()
+        if (this.db) {
+            await this.db.delete()
+            this.createDB()
+        }
     }
     buf2hex (buf) {
         return Array.prototype.map.call(new Uint8Array(buf),
@@ -88,7 +98,70 @@ class KeyStoreManager {
     getHeader () {
         return '{"typ":"JWT","alg":"RS256"}'
     }
+    base64StringToArrayBuffer (b64str) {
+      var byteStr = atob(b64str)
+      var bytes = new Uint8Array(byteStr.length)
+      for (var i = 0; i < byteStr.length; i++) {
+        bytes[i] = byteStr.charCodeAt(i)
+      }
+      return bytes.buffer
+    }
+    convertPemToBinary (pem) {
+        var lines = pem.split('\n')
+        var encoded = ''
+        for (var i = 0; i < lines.length; i++) {
+            if (lines[i].trim().length > 0 &&
+                lines[i].indexOf('-BEGIN RSA PRIVATE KEY-') < 0 &&
+                lines[i].indexOf('-BEGIN RSA PUBLIC KEY-') < 0 &&
+                lines[i].indexOf('-BEGIN PUBLIC KEY-') < 0 &&
+                lines[i].indexOf('-END PUBLIC KEY-') < 0 &&
+                lines[i].indexOf('-END RSA PRIVATE KEY-') < 0 &&
+                lines[i].indexOf('-END RSA PUBLIC KEY-') < 0) {
+                    encoded += lines[i].trim()
+             }
+        }
+        return this.base64StringToArrayBuffer(encoded)
+    }
 
+    importPubKey (keyData) {
+        /* format: jwk
+            keyData: ArrayBuffer or a JSONWebKey
+            algo:
+            extractable: true
+            usages: encrypt */
+        // const algo = {name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256'}
+        const algo = {name: 'RSA-OAEP', hash: 'SHA-256'}
+        this.log('calling import...')
+        const key = window.crypto.subtle.importKey('jwk',
+                                keyData,
+                                algo,
+                                true,
+                                ['encrypt'])
+        //                        ['verify'])
+        /* const pem = this.spkiToPEM(key)
+        this.log('key imported')
+        this.log(pem) */
+        return key
+        /*
+        log.log('return import..')
+        log.log(key)
+        return key */
+    }
+    hash (string) {
+        const b = new TextEncoder('utf-8').encode(string)
+        const h = window.crypto.subtle.digest(defaultHash, b)
+        // this.log(h)
+        return h
+    }
+    encryptAsym (key, buf) {
+        // const bufData = this.bufferize(hexString)
+        // this.log(hexString)
+        const enc = window.crypto.subtle.encrypt('RSA-OAEP', key, buf)
+        // this.log(enc)
+        return enc
+    }
+    async encryptSym (data, key) {
+    }
     async sign (data) {
         /* enrich with JWT header and sign */
         const privKeyRef = await this.getPrivKey(this.getUserName())
@@ -120,34 +193,36 @@ class KeyStoreManager {
         })
     }
 
-    async createKeys (username) {
-        /* and returns publicKey */
-        try {
-            let keypair = await this.generateRSAKeyPair(username)
-            await this.storeKeys(username, keypair)
+    createKeys (username) {
+        this.generateRSAKeyPair(username)
+        .then(async function (keypair) {
+            this.storeKeys(username, keypair)
             const key = await window.crypto.subtle.exportKey('spki', keypair.publicKey)
             const pem = this.spkiToPEM(key)
+            console.log(pem)
             return pem
-        } catch (err) {
-            this.errors.push({'login': err})
-            this.log('problem creating keys. pretty bad.')
-            this.log(err)
-        }
+        }.bind(this))
+        .catch(function (err) {
+            console.log(err)
+            throw err
+        })
     }
 
     storeKeys (username, keypair) {
-        return this.db.keystore.add({username: username,
+        this.log(this.db.keystore)
+        return this.db.keystore.put({username: username,
                   priv_key: keypair.privateKey,
                   pub_key: keypair.publicKey,
                   date: Date.now()})
     }
+
     generateRSAKeyPair (username) {
         return window.crypto.subtle.generateKey(
               {
-                  name: 'RSASSA-PKCS1-v1_5',
-                  modulusLength: 4096,
+                  name: defaultAlgo,
+                  modulusLength: defaultModulusLength,
                   publicExponent: new Uint8Array([0x01, 0x00, 0x01]),
-                  hash: {name: 'SHA-256'}
+                  hash: {name: defaultHash}
               },
               false,
               ['sign', 'verify']
