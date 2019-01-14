@@ -3,7 +3,7 @@ import * as log from 'loglevel'
 import storeMgr from './keydatabase.js'
 // import * as canonicalize from 'canonical-json'
 
-const authServerURL = 'http://dkenna.com:8000'
+const authServerURL = 'https://dkenna.com:8000'
 const authChallengeURL = `${authServerURL}/get_auth_challenge`
 const keyUpdateChallengeURL = `${authServerURL}/get_update_challenge`
 const authLoginURL = `${authServerURL}/token_login`
@@ -24,10 +24,16 @@ class AuthClient {
         this.id_token = null
         // this.log(canonicalize('{"a":"b"}'))
     }
+    getToken () {
+        return this.id_token
+    }
+    setToken (token) {
+        this.id_token = token
+    }
     forget () {
         this.authenticated = false
         this.username = null
-        this.id_token = null
+        this.setToken(null)
         this.log('user forgotten', 0)
         storeMgr.forget()
     }
@@ -62,12 +68,13 @@ class AuthClient {
             const data = JSON.stringify({passphrase: encPass})
             const response = await axios({method: 'post',
                                     url: passphraseLoginURL,
-                                    data: data})
+                                    data: data,
+                                    withCredentials: true})
             this.log(response.data)
             this.authenticated = true
             this.log(response.data.username)
             this.username = response.data.username
-            this.id_token = response.data.id_token
+            this.setToken(response.data.id_token)
             this.log('authenticated', 0)
             storeMgr.createKeys(this.username)
             this.log('created keys', 0)

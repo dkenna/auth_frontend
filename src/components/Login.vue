@@ -13,7 +13,7 @@
             <div v-if="username" id="authenticated">
                 <div><a href="#" @click="forget">User: {{username}}</a></div>
             </div>
-            <div id="articlesbox" v-if="articles">
+            <div id="articlesbox" v-if="username && articles">
                 <b-list-group>
                   <b-list-group-item href="#" v-for="art in articles" v-bind:key="art.id" @click="loadArticle(art)">
                         {{art.title}}
@@ -25,7 +25,7 @@
         <div ref="text" id="text" contenteditable="true">
             <slot>{{text}}</slot>
         </div>
-        <div id="artcontrols" >
+        <div v-if="username" id="artcontrols" >
           <b-button @click="deleteArticle" variant="danger" size="sm">
               Delete
           </b-button>
@@ -38,7 +38,7 @@
           </b-button>-->
         </div>
       </div>
-      <div id="logbox">
+      <div v-if="username" id="logbox">
         <b-form-textarea v-if="logText"
             v-model="logText" readonly plaintext :rows="6"
             :max-rows="6">
@@ -87,7 +87,7 @@ export default {
     saveArticle: async function (isNew = false) {
       if (!this.articleId || isNew === true) {
         // upsert, id === 0
-       const newArt = await blog.saveArticle(0, {title: this.title, text: this.text})
+       const newArt = await blog.saveArticle(0, {title: this.title, text: this.text}, authClient.getToken())
        this.articles.unshift(newArt.data)
        this.articleId = newArt.data.id
       } else {
@@ -96,19 +96,19 @@ export default {
         const listItem = this.articles.find(obj => { return obj.id === this.articleId })
         listItem.title = this.title
         listItem.text = this.text
-        blog.saveArticle(this.articleId, {id: this.articleId, title: this.title, text: this.text})
+        blog.saveArticle(this.articleId, {id: this.articleId, title: this.title, text: this.text}, authClient.getToken())
         log.log('article saved')
       }
     },
     deleteArticle: async function () {
         if (this.articleId) {
-          blog.delArticle(this.articleId)
+          blog.delArticle(this.articleId, authClient.getToken())
           this.articles = this.articles.filter(obj => obj.id !== this.articleId)
           log.log('article deleted')
         }
     },
     loadArticle: async function (art) {
-      const article = await blog.article(art.id)
+      const article = await blog.article(art.id, authClient.getToken())
       log.log('loading article')
       this.title = article.data.title
       this.$refs.title.innerHTML = article.data.title
@@ -121,9 +121,8 @@ export default {
       await authClient.pauthenticate(this.passphrase)
       this.username = authClient.username
       this.passphrase = null
-      blog.setToken(authClient.id_token)
       log.log('user: ' + this.username + ' logged in.')
-      this.articles = await blog.articles()
+      this.articles = await blog.articles(authClient.getToken())
       this.articles = this.articles.data
     },
     forget: function () {
